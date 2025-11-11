@@ -29,13 +29,17 @@ def drive_read_csv(filename):
     file_id = drive_find(filename)
     if not file_id:
         return pd.DataFrame()
+
     request = drive.files().get_media(fileId=file_id)
     fh = BytesIO()
-    for _ in MediaIoBaseDownload(fh, request):
-        pass
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while not done:
+        status, done = downloader.next_chunk()
+
     fh.seek(0)
     return pd.read_csv(fh)
-
+    
 def drive_write_csv(df, filename):
     fh = BytesIO()
     df.to_csv(fh, index=False)
@@ -52,10 +56,14 @@ def drive_read_json(filename, default):
     file_id = drive_find(filename)
     if not file_id:
         return default
+
     request = drive.files().get_media(fileId=file_id)
     fh = BytesIO()
-    for _ in MediaIoBaseDownload(fh, request):
-        pass
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while not done:
+        status, done = downloader.next_chunk()
+
     fh.seek(0)
     return json.loads(fh.read().decode())
 
