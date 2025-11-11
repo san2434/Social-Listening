@@ -1,0 +1,36 @@
+name: Daily Social Data Pipeline
+
+on:
+  schedule:
+    - cron: "0 11 * * *"   # 6 AM EST = 11 UTC
+  workflow_dispatch:
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repo
+      uses: actions/checkout@v3
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.10
+
+    - name: Install Dependencies
+      run: pip install pandas google-api-python-client praw rclone --quiet
+
+    - name: Restore rclone config
+      run: |
+        mkdir -p ~/.config/rclone
+        echo "${{ secrets.RCLONE_CONF }}" > ~/.config/rclone/rclone.conf
+
+    - name: Restore YouTube Keys
+      run: echo "${{ secrets.YT_API_KEYS_JSON }}" > youtube_keys.json
+
+    - name: Run Pipeline
+      run: python Social_Data_Extraction_Final.py
+
+    - name: Sync Back to Google Drive
+      run: rclone sync ./output "drive:Social Data Poc" --create-empty-src-dirs
