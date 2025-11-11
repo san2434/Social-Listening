@@ -158,12 +158,12 @@ def reddit_scrape(keywords):
     return df_all
 
 def main():
-    keywords = pd.read_excel("keywords.xlsx")["cluster_keyword"].dropna().tolist()
-    keywords = keywords[:20]   # ✅ Stability test subset
+    keywords = drive_read_csv("keywords.csv")["cluster_keyword"].dropna().tolist()[:20]
     yt = youtube_scrape(keywords)
     rd = reddit_scrape(keywords)
     combined = pd.concat([yt, rd], ignore_index=True)
     drive_write_csv(combined, "Combined_Social_Data.csv")
+
 
     print("\n✅ Stability Test Completed Successfully")
     print(f"YouTube rows total: {len(yt)}")
