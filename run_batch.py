@@ -9,9 +9,9 @@ from io import BytesIO
 
 # ====== CONFIG ======
 DRIVE_FOLDER_ID = "1Lp6rU11WMfmvEwZoIaTKyg8ex52EwAc0"   # ✅ Your Drive Folder
-SWITCH_THRESHOLD = 1000   # ✅ Stability test threshold
+SWITCH_THRESHOLD = 300   # ✅ Stability test threshold
 COMMENTS_PER_REQUEST = 100
-MAX_REDDIT_COMMENTS = 500  # ✅ Stability test Reddit cap
+MAX_REDDIT_COMMENTS = 10  # ✅ Stability test Reddit cap
 
 # ====== AUTH: Google Drive (Service Account in GitHub Secret) ======
 creds_json = json.loads(os.environ["GDRIVE_SERVICE_ACCOUNT_JSON"])
