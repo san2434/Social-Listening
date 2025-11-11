@@ -190,7 +190,7 @@ def reddit_scrape(keywords):
     return df_all
 
 def main():
-    keywords = drive_read_csv("keywords.csv")["cluster_keyword"].dropna().tolist()[:20]
+    keywords = drive_read_csv("keywords.csv")["cluster_keyword"].dropna().tolist()[:300]
     yt = youtube_scrape(keywords)
     rd = reddit_scrape(keywords)
     combined = pd.concat([yt, rd], ignore_index=True)
