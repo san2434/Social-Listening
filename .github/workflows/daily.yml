@@ -2,7 +2,7 @@ name: Daily Social Data Fetch
 
 on:
   schedule:
-    - cron: "0 11 * * *"   # 6 AM EST = 11 UTC
+    - cron: "0 11 * * *"   # 6 AM EST = 11:00 UTC
   workflow_dispatch:
 
 jobs:
@@ -22,3 +22,47 @@ jobs:
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
           REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
         run: python run_batch.py
+
+      # --- Email on success ---
+      - name: Email (success)
+        if: ${{ success() }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: ✅ Social pipeline succeeded — ${{ github.repository }}
+          to: ${{ secrets.GMAIL_USER }}
+          from: Social Pipeline <${{ secrets.GMAIL_USER }}>
+          body: |
+            ✅ Success
+
+            Repo: ${{ github.repository }}
+            Run:  ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            See attached summary (if present).
+          attachments: |
+            run_summary.txt
+
+      # --- Email on failure ---
+      - name: Email (failure)
+        if: ${{ failure() }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: ❌ Social pipeline failed — ${{ github.repository }}
+          to: ${{ secrets.GMAIL_USER }}
+          from: Social Pipeline <${{ secrets.GMAIL_USER }}>
+          body: |
+            ❌ Failed
+
+            Repo: ${{ github.repository }}
+            Run:  ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Check the Actions logs for errors.
