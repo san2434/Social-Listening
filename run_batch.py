@@ -9,9 +9,9 @@ from io import BytesIO
 
 # ====== CONFIG ======
 DRIVE_FOLDER_ID = "1Lp6rU11WMfmvEwZoIaTKyg8ex52EwAc0"
-SWITCH_THRESHOLD = 300
+SWITCH_THRESHOLD = 8300
 COMMENTS_PER_REQUEST = 100
-MAX_REDDIT_COMMENTS = 10
+MAX_REDDIT_COMMENTS = 3000
 
 YT_USAGE_FILENAME = "youtube_keys_usage.json"   # ✅ NEW (stored in Drive)
 
