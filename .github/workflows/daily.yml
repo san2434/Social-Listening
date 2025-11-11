@@ -1,4 +1,4 @@
-name: Daily Social Data Pipeline
+name: Daily Social Data Fetch
 
 on:
   schedule:
@@ -6,31 +6,19 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-pipeline:
+  run:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Repo
-      uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: 3.10
+      - name: Install Dependencies
+        run: pip install google-api-python-client praw pandas
 
-    - name: Install Dependencies
-      run: pip install pandas google-api-python-client praw rclone --quiet
-
-    - name: Restore rclone config
-      run: |
-        mkdir -p ~/.config/rclone
-        echo "${{ secrets.RCLONE_CONF }}" > ~/.config/rclone/rclone.conf
-
-    - name: Restore YouTube Keys
-      run: echo "${{ secrets.YT_API_KEYS_JSON }}" > youtube_keys.json
-
-    - name: Run Pipeline
-      run: python Social_Data_Extraction_Final.py
-
-    - name: Sync Back to Google Drive
-      run: rclone sync ./output "drive:Social Data Poc" --create-empty-src-dirs
+      - name: Run Pipeline
+        env:
+          GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          YOUTUBE_KEYS_JSON: ${{ secrets.YOUTUBE_KEYS_JSON }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+        run: python run_batch.py
