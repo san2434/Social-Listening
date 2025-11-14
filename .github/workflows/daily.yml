@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Install Dependencies
-        run: pip install google-api-python-client praw pandas
+        run: pip install google-api-python-client praw pandas google-auth-httplib2 google-auth-oauthlib
 
       - name: Run Pipeline
         env:
@@ -22,6 +22,13 @@ jobs:
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
           REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
         run: python run_batch.py
+
+      # ⭐ NEW — Upload CSV outputs so you can download to your local machine ⭐
+      - name: Upload CSV output
+        uses: actions/upload-artifact@v4
+        with:
+          name: social-output
+          path: "*.csv"
 
       # --- Email on success ---
       - name: Email (success)
@@ -33,7 +40,7 @@ jobs:
           secure: true
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          subject: ✅ Social pipeline succeeded — ${{ github.repository }}
+          subject: "✅ Social pipeline succeeded — ${{ github.repository }}"
           to: ${{ secrets.GMAIL_USER }}
           from: Social Pipeline <${{ secrets.GMAIL_USER }}>
           body: |
@@ -41,10 +48,6 @@ jobs:
 
             Repo: ${{ github.repository }}
             Run:  ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            See attached summary (if present).
-          attachments: |
-            run_summary.txt
 
       # --- Email on failure ---
       - name: Email (failure)
@@ -56,7 +59,7 @@ jobs:
           secure: true
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          subject: ❌ Social pipeline failed — ${{ github.repository }}
+          subject: "❌ Social pipeline failed — ${{ github.repository }}"
           to: ${{ secrets.GMAIL_USER }}
           from: Social Pipeline <${{ secrets.GMAIL_USER }}>
           body: |
