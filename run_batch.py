@@ -207,7 +207,7 @@ def youtube_scrape(keywords):
     print(f"✅ YouTube saved → {len(df_all)} rows")
 
     # ===== DAILY BACKUP FILE =====
-    backup_name = f"YouTube_Result_{TODAY_STR}.csv"
+    backup_name =  "Youtube_Daily_Backup.csv"
     drive_write_csv(df_all, backup_name)
     print(f"📁 Daily backup saved → {backup_name}")
 
@@ -272,7 +272,7 @@ def reddit_scrape(keywords):
     print(f"✅ Reddit saved → {len(df_all)} rows")
 
     # ===== DAILY BACKUP FILE =====
-    backup_name = f"Reddit_Result_{TODAY_STR}.csv"
+    backup_name = "Reddit_Daily_Backup.csv"
     drive_write_csv(df_all, backup_name)
     print(f"📁 Daily backup saved → {backup_name}")
 
