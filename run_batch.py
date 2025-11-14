@@ -13,6 +13,9 @@ SWITCH_THRESHOLD = 8300
 COMMENTS_PER_REQUEST = 100
 MAX_REDDIT_COMMENTS = 3000
 
+# DAILY BACKUP DATE STAMP
+TODAY_STR = datetime.utcnow().strftime("%Y%m%d")
+
 # ====== GOOGLE DRIVE AUTH ======
 creds_json = json.loads(os.environ["GDRIVE_SERVICE_ACCOUNT_JSON"])
 creds = Credentials.from_service_account_info(creds_json)
@@ -61,7 +64,7 @@ reddit = praw.Reddit(
 
 # ====== YOUTUBE KEY ROTATION ======
 YOUTUBE_KEYS = json.loads(os.environ["YOUTUBE_KEYS_JSON"])
-YT_USAGE = YOUTUBE_KEYS  # in-memory tracking
+YT_USAGE = YOUTUBE_KEYS
 current_key_index = 0
 YOUTUBE_API_KEY = YT_USAGE[current_key_index]["key"]
 
@@ -102,16 +105,20 @@ def yt_safe_request(req, cost):
                 print(f"⚠️ YouTube error: {e}")
                 return None
 
-# ====== SCRAPERS ======
+# ======================================================================
+# ========================== UPDATED SCRAPERS ==========================
+# ======================================================================
+
 def youtube_scrape(keywords):
     df_existing = drive_read_csv("youtube_data_comments.csv")
-    seen = set(df_existing.get("comment_id", []).dropna())
-    rows = []
+    seen_comments = set(df_existing.get("comment_id", []).dropna())
+    rows_new = []
     since = (datetime.utcnow() - timedelta(days=7)).isoformat("T") + "Z"
 
     try:
         for kw in keywords:
             print(f"\n🔍 YouTube: {kw}")
+
             resp = yt_safe_request(
                 youtube.search().list(
                     q=kw, part="snippet", type="video",
@@ -124,83 +131,165 @@ def youtube_scrape(keywords):
 
             for item in resp.get("items", []):
                 vid = item["id"]["videoId"]
+
+                # Fetch full metadata for the video
+                v_resp = yt_safe_request(
+                    youtube.videos().list(
+                        part="snippet,statistics,contentDetails,topicDetails",
+                        id=vid
+                    ),
+                    1
+                )
+                if not v_resp or not v_resp.get("items"):
+                    continue
+
+                v = v_resp["items"][0]
+                sn = v.get("snippet", {})
+                st = v.get("statistics", {})
+
+                # RENAMED video_id → id
+                base = {
+                    "id": vid,
+                    "title": sn.get("title", ""),
+                    "description": sn.get("description", ""),
+                    "channel_title": sn.get("channelTitle", ""),
+                    "published_at": sn.get("publishedAt", ""),
+                    "view_count": st.get("viewCount", None),
+                    "like_count": st.get("likeCount", None),
+                    "comment_count": st.get("commentCount", None),
+                    "keyword": kw,
+                    "source": "YouTube"
+                }
+
                 token = None
                 while True:
-                    c = yt_safe_request(
+                    c_resp = yt_safe_request(
                         youtube.commentThreads().list(
-                            videoId=vid, part="snippet",
+                            part="snippet",
+                            videoId=vid,
                             maxResults=COMMENTS_PER_REQUEST,
+                            order="relevance",
+                            textFormat="plainText",
                             pageToken=token
                         ),
                         1
                     )
-                    if not c:
+                    if not c_resp:
                         break
-                    for t in c.get("items", []):
-                        cid = t["id"]
-                        if cid in seen:
+
+                    for c in c_resp.get("items", []):
+                        cid = c["id"]
+                        if cid in seen_comments:
                             continue
-                        seen.add(cid)
-                        snip = t["snippet"]["topLevelComment"]["snippet"]
-                        rows.append({
-                            "video_id": vid,
+                        seen_comments.add(cid)
+
+                        snip = c["snippet"]["topLevelComment"]["snippet"]
+
+                        rows_new.append({
+                            **base,
                             "comment_id": cid,
                             "comment": snip.get("textDisplay", ""),
-                            "keyword": kw,
-                            "source": "YouTube"
+                            "comment_author": snip.get("authorDisplayName", ""),
+                            "comment_published_at": snip.get("publishedAt", "")
                         })
-                    token = c.get("nextPageToken")
+
+                    token = c_resp.get("nextPageToken")
                     if not token:
                         break
 
     except StopIteration:
         pass
 
-    df_all = pd.concat([df_existing, pd.DataFrame(rows)], ignore_index=True)
+    df_all = pd.concat([df_existing, pd.DataFrame(rows_new)], ignore_index=True)
+
+    # ===== MAIN FILE =====
     drive_write_csv(df_all, "youtube_data_comments.csv")
-    print(f"✅ YouTube saved → {len(df_all)} total rows")
+    print(f"✅ YouTube saved → {len(df_all)} rows")
+
+    # ===== DAILY BACKUP FILE =====
+    backup_name = f"YouTube_Result_{TODAY_STR}.csv"
+    drive_write_csv(df_all, backup_name)
+    print(f"📁 Daily backup saved → {backup_name}")
+
     return df_all
+
 
 
 def reddit_scrape(keywords):
     df_existing = drive_read_csv("Reddit_Data.csv")
-    seen = set(zip(df_existing.get("post_id", []), df_existing.get("comment_id", [])))
-    rows = []
+    seen = set(zip(df_existing.get("id", []), df_existing.get("comment_id", [])))
+    rows_new = []
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
     for kw in keywords:
         print(f"\n👽 Reddit: {kw}")
         for post in reddit.subreddit("all").search(f'"{kw}"', sort="new", time_filter="week"):
-            if datetime.fromtimestamp(post.created_utc, tz=timezone.utc) < cutoff:
+            created = datetime.fromtimestamp(post.created_utc, tz=timezone.utc)
+            if created < cutoff:
                 continue
+
+            # REMOVED video_id, RENAMED post_id → id
+            base = {
+                "id": post.id,
+                "title": post.title,
+                "description": post.selftext or None,
+                "channel_title": str(post.author) if post.author else None,
+                "published_at": created.isoformat(),
+                "view_count": post.score,
+                "like_count": post.ups,
+                "comment_count": post.num_comments,
+                "keyword": kw,
+                "source": "Reddit"
+            }
+
             post.comments.replace_more(limit=0)
             extracted = 0
+
             for c in post.comments.list():
                 key = (post.id, c.id)
                 if key in seen:
                     continue
                 seen.add(key)
-                rows.append({
-                    "post_id": post.id,
+
+                rows_new.append({
+                    **base,
                     "comment_id": c.id,
                     "comment": c.body,
-                    "keyword": kw,
-                    "source": "Reddit"
+                    "comment_author": str(c.author) if c.author else None,
+                    "comment_published_at": datetime.fromtimestamp(
+                        c.created_utc, tz=timezone.utc
+                    ).isoformat()
                 })
+
                 extracted += 1
                 if extracted >= MAX_REDDIT_COMMENTS:
                     break
 
-    df_all = pd.concat([df_existing, pd.DataFrame(rows)], ignore_index=True)
+    df_all = pd.concat([df_existing, pd.DataFrame(rows_new)], ignore_index=True)
+
+    # ===== MAIN FILE =====
     drive_write_csv(df_all, "Reddit_Data.csv")
-    print(f"✅ Reddit saved → {len(df_all)} total rows")
+    print(f"✅ Reddit saved → {len(df_all)} rows")
+
+    # ===== DAILY BACKUP FILE =====
+    backup_name = f"Reddit_Result_{TODAY_STR}.csv"
+    drive_write_csv(df_all, backup_name)
+    print(f"📁 Daily backup saved → {backup_name}")
+
     return df_all
 
 
+
+# ======================================================================
+# =============================== MAIN =================================
+# ======================================================================
+
 def main():
     keywords = drive_read_csv("keywords.csv")["cluster_keyword"].dropna().tolist()[:300]
+
     yt = youtube_scrape(keywords)
     rd = reddit_scrape(keywords)
+
     combined = pd.concat([yt, rd], ignore_index=True)
     drive_write_csv(combined, "Combined_Social_Data.csv")
 
@@ -208,8 +297,7 @@ def main():
     for k in YT_USAGE:
         print(f"• {k['key'][:10]}… → {k['usage']} units used")
 
-    print("\n✅ Run Completed Successfully")
-
+    print("\n🎉 Run Completed Successfully")
 
 if __name__ == "__main__":
     main()
