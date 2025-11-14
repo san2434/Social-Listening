@@ -9,7 +9,7 @@ from io import BytesIO
 
 # ====== CONFIG ======
 DRIVE_FOLDER_ID = "1Lp6rU11WMfmvEwZoIaTKyg8ex52EwAc0"
-SWITCH_THRESHOLD = 8300
+SWITCH_THRESHOLD = 10
 COMMENTS_PER_REQUEST = 100
 MAX_REDDIT_COMMENTS = 3000
 
@@ -285,7 +285,7 @@ def reddit_scrape(keywords):
 # ======================================================================
 
 def main():
-    keywords = drive_read_csv("keywords.csv")["cluster_keyword"].dropna().tolist()[:300]
+    keywords = drive_read_csv("keywords.csv")["cluster_keyword"].dropna().tolist()
 
     yt = youtube_scrape(keywords)
     rd = reddit_scrape(keywords)
