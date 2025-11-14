@@ -5,15 +5,17 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from google.oauth2.service_account import Credentials
 import praw
+import prawcore
 from io import BytesIO
+import time
 
 # ====== CONFIG ======
 DRIVE_FOLDER_ID = "1Lp6rU11WMfmvEwZoIaTKyg8ex52EwAc0"
-SWITCH_THRESHOLD = 10
+SWITCH_THRESHOLD = 10          # YouTube quota switch for testing
 COMMENTS_PER_REQUEST = 100
 MAX_REDDIT_COMMENTS = 3000
 
-# DAILY BACKUP DATE STAMP
+# DAILY BACKUP DATE STAMP (currently not used for filename, but kept if needed later)
 TODAY_STR = datetime.utcnow().strftime("%Y%m%d")
 
 # ====== GOOGLE DRIVE AUTH ======
@@ -61,6 +63,47 @@ reddit = praw.Reddit(
     client_secret=os.environ["REDDIT_CLIENT_SECRET"],
     user_agent=os.environ["REDDIT_USER_AGENT"]
 )
+
+# ====== REDDIT RATE LIMIT CONFIG ======
+REDDIT_TIME_FILTER       = "week"
+REDDIT_RETRIES           = 3
+REDDIT_BACKOFF_S         = 60
+REDDIT_SEARCH_PAUSE_S    = 1.0   # pause between posts
+REDDIT_COMMENT_PAUSE_S   = 0.25  # pause between comments
+
+def safe_reddit_search(reddit, query, retries=REDDIT_RETRIES):
+    """
+    Safely performs a Reddit search with retry and backoff handling.
+    Returns a LIST of posts (not a generator).
+    """
+    for attempt in range(1, retries + 1):
+        try:
+            gen = reddit.subreddit("all").search(
+                f'"{query}"',
+                sort="new",
+                time_filter=REDDIT_TIME_FILTER,
+                limit=None
+            )
+            posts = list(gen)
+            return posts
+
+        except prawcore.exceptions.TooManyRequests as e:
+            wait = getattr(e, "sleep_time", REDDIT_BACKOFF_S)
+            print(f"⏳ 429 TooManyRequests for '{query}' — sleeping {wait:.0f}s (attempt {attempt}/{retries})")
+            time.sleep(wait)
+
+        except Exception as e:
+            msg = str(e)
+            if "429" in msg or "temporarily" in msg.lower():
+                print(f"⏳ Temporary Reddit error for '{query}' — sleeping {REDDIT_BACKOFF_S}s "
+                      f"(attempt {attempt}/{retries})")
+                time.sleep(REDDIT_BACKOFF_S)
+            else:
+                print(f"⚠️ Reddit search error for '{query}': {e}")
+                return []
+
+    print(f"❌ Reddit search failed after {retries} attempts for '{query}'")
+    return []
 
 # ====== YOUTUBE KEY ROTATION ======
 YOUTUBE_KEYS = json.loads(os.environ["YOUTUBE_KEYS_JSON"])
@@ -206,8 +249,8 @@ def youtube_scrape(keywords):
     drive_write_csv(df_all, "youtube_data_comments.csv")
     print(f"✅ YouTube saved → {len(df_all)} rows")
 
-    # ===== DAILY BACKUP FILE =====
-    backup_name =  "Youtube_Daily_Backup.csv"
+    # ===== STATIC DAILY BACKUP FILE =====
+    backup_name = "Youtube_Daily_Backup.csv"
     drive_write_csv(df_all, backup_name)
     print(f"📁 Daily backup saved → {backup_name}")
 
@@ -223,7 +266,13 @@ def reddit_scrape(keywords):
 
     for kw in keywords:
         print(f"\n👽 Reddit: {kw}")
-        for post in reddit.subreddit("all").search(f'"{kw}"', sort="new", time_filter="week"):
+
+        # Use safe search with retries and backoff
+        posts = safe_reddit_search(reddit, kw)
+
+        for post in posts:
+            time.sleep(REDDIT_SEARCH_PAUSE_S)
+
             created = datetime.fromtimestamp(post.created_utc, tz=timezone.utc)
             if created < cutoff:
                 continue
@@ -242,10 +291,17 @@ def reddit_scrape(keywords):
                 "source": "Reddit"
             }
 
-            post.comments.replace_more(limit=0)
+            try:
+                post.comments.replace_more(limit=0)
+            except Exception as e:
+                print(f"⚠️ Could not expand comments for post {post.id}: {e}")
+                continue
+
             extracted = 0
 
             for c in post.comments.list():
+                time.sleep(REDDIT_COMMENT_PAUSE_S)
+
                 key = (post.id, c.id)
                 if key in seen:
                     continue
@@ -271,7 +327,7 @@ def reddit_scrape(keywords):
     drive_write_csv(df_all, "Reddit_Data.csv")
     print(f"✅ Reddit saved → {len(df_all)} rows")
 
-    # ===== DAILY BACKUP FILE =====
+    # ===== STATIC DAILY BACKUP FILE =====
     backup_name = "Reddit_Daily_Backup.csv"
     drive_write_csv(df_all, backup_name)
     print(f"📁 Daily backup saved → {backup_name}")
