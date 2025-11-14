@@ -11,51 +11,94 @@ import time
 
 # ====== CONFIG ======
 DRIVE_FOLDER_ID = "1Lp6rU11WMfmvEwZoIaTKyg8ex52EwAc0"
-SWITCH_THRESHOLD = 10          # YouTube quota switch for testing
+SWITCH_THRESHOLD = 10
 COMMENTS_PER_REQUEST = 100
 MAX_REDDIT_COMMENTS = 3000
-
-# DAILY BACKUP DATE STAMP (currently not used for filename, but kept if needed later)
 TODAY_STR = datetime.utcnow().strftime("%Y%m%d")
 
-# ====== GOOGLE DRIVE AUTH ======
-creds_json = json.loads(os.environ["GDRIVE_SERVICE_ACCOUNT_JSON"])
-creds = Credentials.from_service_account_info(creds_json)
-drive = build("drive", "v3", credentials=creds)
+# ====== LOCAL OUTPUT DIRECTORY ======
+LOCAL_DIR = "."
+os.makedirs(LOCAL_DIR, exist_ok=True)
+
+# ====== BUILD GOOGLE DRIVE CLIENT WITH REBUILD OPTION ======
+def build_drive():
+    creds_json = json.loads(os.environ["GDRIVE_SERVICE_ACCOUNT_JSON"])
+    creds = Credentials.from_service_account_info(creds_json)
+    return build("drive", "v3", credentials=creds, cache_discovery=False)
+
+drive = build_drive()
+
+def safe_drive_call(func, retries=3, wait=5):
+    """Retry wrapper to prevent SSL/token refresh crash."""
+    global drive
+    for attempt in range(1, retries + 1):
+        try:
+            return func()
+        except Exception as e:
+            print(f"⚠️ Drive API error: {e} (attempt {attempt}/{retries})")
+            if attempt == retries:
+                raise
+            print(f"⏳ Rebuilding Drive client and retrying in {wait} seconds...")
+            time.sleep(wait)
+            drive = build_drive()
+
+# ====== DRIVE FUNCTIONS ======
 
 def drive_find(name):
     q = f"'{DRIVE_FOLDER_ID}' in parents and name='{name}'"
-    results = drive.files().list(q=q).execute().get("files", [])
-    return results[0]["id"] if results else None
+    result = safe_drive_call(lambda: drive.files().list(q=q).execute())
+    files = result.get("files", [])
+    return files[0]["id"] if files else None
 
 def drive_read_csv(filename):
     file_id = drive_find(filename)
     if not file_id:
+        # Load local copy if present
+        path = os.path.join(LOCAL_DIR, filename)
+        if os.path.exists(path):
+            print(f"📂 Loaded local CSV: {path}")
+            return pd.read_csv(path)
         return pd.DataFrame()
 
     request = drive.files().get_media(fileId=file_id)
     fh = BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
     done = False
+
     while not done:
-        status, done = downloader.next_chunk()
+        status, done = safe_drive_call(lambda: downloader.next_chunk())
 
     fh.seek(0)
-    return pd.read_csv(fh)
+    df = pd.read_csv(fh)
+
+    # Save local mirror
+    df.to_csv(os.path.join(LOCAL_DIR, filename), index=False)
+    print(f"💾 Saved local copy: {filename}")
+
+    return df
 
 def drive_write_csv(df, filename):
+    # Save locally first
+    local_path = os.path.join(LOCAL_DIR, filename)
+    df.to_csv(local_path, index=False)
+    print(f"💾 Local copy saved: {local_path}")
+
+    # Now upload to Drive
     fh = BytesIO()
     df.to_csv(fh, index=False)
     fh.seek(0)
     media = MediaIoBaseUpload(fh, mimetype="text/csv")
+
     file_id = drive_find(filename)
     if file_id:
-        drive.files().update(fileId=file_id, media_body=media).execute()
+        safe_drive_call(lambda: drive.files().update(fileId=file_id, media_body=media).execute())
+        print(f"☁️ Updated Drive file: {filename}")
     else:
-        drive.files().create(
+        safe_drive_call(lambda: drive.files().create(
             body={"name": filename, "parents": [DRIVE_FOLDER_ID]},
             media_body=media
-        ).execute()
+        ).execute())
+        print(f"☁️ Created new Drive file: {filename}")
 
 # ====== REDDIT AUTH ======
 reddit = praw.Reddit(
@@ -65,17 +108,13 @@ reddit = praw.Reddit(
 )
 
 # ====== REDDIT RATE LIMIT CONFIG ======
-REDDIT_TIME_FILTER       = "week"
-REDDIT_RETRIES           = 3
-REDDIT_BACKOFF_S         = 60
-REDDIT_SEARCH_PAUSE_S    = 1.0   # pause between posts
-REDDIT_COMMENT_PAUSE_S   = 0.25  # pause between comments
+REDDIT_TIME_FILTER = "week"
+REDDIT_RETRIES = 3
+REDDIT_BACKOFF_S = 60
+REDDIT_SEARCH_PAUSE_S = 1.0
+REDDIT_COMMENT_PAUSE_S = 0.25
 
 def safe_reddit_search(reddit, query, retries=REDDIT_RETRIES):
-    """
-    Safely performs a Reddit search with retry and backoff handling.
-    Returns a LIST of posts (not a generator).
-    """
     for attempt in range(1, retries + 1):
         try:
             gen = reddit.subreddit("all").search(
@@ -84,28 +123,23 @@ def safe_reddit_search(reddit, query, retries=REDDIT_RETRIES):
                 time_filter=REDDIT_TIME_FILTER,
                 limit=None
             )
-            posts = list(gen)
-            return posts
+            return list(gen)
 
         except prawcore.exceptions.TooManyRequests as e:
             wait = getattr(e, "sleep_time", REDDIT_BACKOFF_S)
-            print(f"⏳ 429 TooManyRequests for '{query}' — sleeping {wait:.0f}s (attempt {attempt}/{retries})")
+            print(f"⏳ 429 TooManyRequests — sleeping {wait}s")
             time.sleep(wait)
 
         except Exception as e:
-            msg = str(e)
-            if "429" in msg or "temporarily" in msg.lower():
-                print(f"⏳ Temporary Reddit error for '{query}' — sleeping {REDDIT_BACKOFF_S}s "
-                      f"(attempt {attempt}/{retries})")
+            if "429" in str(e) or "temporarily" in str(e).lower():
+                print(f"⏳ Temporary Reddit error — sleeping {REDDIT_BACKOFF_S}s")
                 time.sleep(REDDIT_BACKOFF_S)
             else:
-                print(f"⚠️ Reddit search error for '{query}': {e}")
+                print(f"⚠️ Reddit error: {e}")
                 return []
-
-    print(f"❌ Reddit search failed after {retries} attempts for '{query}'")
     return []
 
-# ====== YOUTUBE KEY ROTATION ======
+# ====== YOUTUBE AUTH + KEY ROTATION ======
 YOUTUBE_KEYS = json.loads(os.environ["YOUTUBE_KEYS_JSON"])
 YT_USAGE = YOUTUBE_KEYS
 current_key_index = 0
@@ -123,14 +157,13 @@ def rotate_key():
     global current_key_index, YOUTUBE_API_KEY
     current_key_index += 1
     if current_key_index >= len(YT_USAGE):
-        print("⚠️ All YouTube keys exhausted — switching to Reddit only.")
+        print("⚠️ All YouTube keys exhausted.")
         raise StopIteration
     YOUTUBE_API_KEY = YT_USAGE[current_key_index]["key"]
     get_youtube_service()
 
 def add_usage(units):
     YT_USAGE[current_key_index]["usage"] += units
-    print(f"🔄 Updated key usage: {YT_USAGE[current_key_index]['usage']} units for {YOUTUBE_API_KEY[:10]}...")
     if YT_USAGE[current_key_index]["usage"] >= SWITCH_THRESHOLD:
         rotate_key()
 
@@ -142,20 +175,19 @@ def yt_safe_request(req, cost):
             return resp
         except Exception as e:
             if "quotaExceeded" in str(e):
-                print("🚨 Quota exceeded → rotating key")
                 rotate_key()
             else:
                 print(f"⚠️ YouTube error: {e}")
                 return None
 
 # ======================================================================
-# ========================== UPDATED SCRAPERS ==========================
+# ========================== YOUTUBE SCRAPER ============================
 # ======================================================================
 
 def youtube_scrape(keywords):
     df_existing = drive_read_csv("youtube_data_comments.csv")
-    seen_comments = set(df_existing.get("comment_id", []).dropna())
-    rows_new = []
+    seen = set(df_existing.get("comment_id", []).dropna())
+    rows = []
     since = (datetime.utcnow() - timedelta(days=7)).isoformat("T") + "Z"
 
     try:
@@ -166,40 +198,37 @@ def youtube_scrape(keywords):
                 youtube.search().list(
                     q=kw, part="snippet", type="video",
                     order="date", maxResults=50, publishedAfter=since
-                ),
-                100
-            )
+                ), 100)
+
             if not resp:
                 continue
 
             for item in resp.get("items", []):
                 vid = item["id"]["videoId"]
 
-                # Fetch full metadata for the video
-                v_resp = yt_safe_request(
+                meta = yt_safe_request(
                     youtube.videos().list(
-                        part="snippet,statistics,contentDetails,topicDetails",
+                        part="snippet,statistics,contentDetails",
                         id=vid
                     ),
                     1
                 )
-                if not v_resp or not v_resp.get("items"):
+                if not meta or not meta.get("items"):
                     continue
 
-                v = v_resp["items"][0]
-                sn = v.get("snippet", {})
+                v = meta["items"][0]
+                sn = v["snippet"]
                 st = v.get("statistics", {})
 
-                # RENAMED video_id → id
                 base = {
                     "id": vid,
                     "title": sn.get("title", ""),
                     "description": sn.get("description", ""),
                     "channel_title": sn.get("channelTitle", ""),
                     "published_at": sn.get("publishedAt", ""),
-                    "view_count": st.get("viewCount", None),
-                    "like_count": st.get("likeCount", None),
-                    "comment_count": st.get("commentCount", None),
+                    "view_count": st.get("viewCount"),
+                    "like_count": st.get("likeCount"),
+                    "comment_count": st.get("commentCount"),
                     "keyword": kw,
                     "source": "YouTube"
                 }
@@ -222,13 +251,13 @@ def youtube_scrape(keywords):
 
                     for c in c_resp.get("items", []):
                         cid = c["id"]
-                        if cid in seen_comments:
+                        if cid in seen:
                             continue
-                        seen_comments.add(cid)
 
+                        seen.add(cid)
                         snip = c["snippet"]["topLevelComment"]["snippet"]
 
-                        rows_new.append({
+                        rows.append({
                             **base,
                             "comment_id": cid,
                             "comment": snip.get("textDisplay", ""),
@@ -243,31 +272,23 @@ def youtube_scrape(keywords):
     except StopIteration:
         pass
 
-    df_all = pd.concat([df_existing, pd.DataFrame(rows_new)], ignore_index=True)
-
-    # ===== MAIN FILE =====
+    df_all = pd.concat([df_existing, pd.DataFrame(rows)], ignore_index=True)
     drive_write_csv(df_all, "youtube_data_comments.csv")
-    print(f"✅ YouTube saved → {len(df_all)} rows")
-
-    # ===== STATIC DAILY BACKUP FILE =====
-    backup_name = "Youtube_Daily_Backup.csv"
-    drive_write_csv(df_all, backup_name)
-    print(f"📁 Daily backup saved → {backup_name}")
-
+    drive_write_csv(df_all, "Youtube_Daily_Backup.csv")
     return df_all
 
-
+# ======================================================================
+# ============================ REDDIT SCRAPER ===========================
+# ======================================================================
 
 def reddit_scrape(keywords):
     df_existing = drive_read_csv("Reddit_Data.csv")
     seen = set(zip(df_existing.get("id", []), df_existing.get("comment_id", [])))
-    rows_new = []
+    rows = []
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
     for kw in keywords:
         print(f"\n👽 Reddit: {kw}")
-
-        # Use safe search with retries and backoff
         posts = safe_reddit_search(reddit, kw)
 
         for post in posts:
@@ -277,7 +298,6 @@ def reddit_scrape(keywords):
             if created < cutoff:
                 continue
 
-            # REMOVED video_id, RENAMED post_id → id
             base = {
                 "id": post.id,
                 "title": post.title,
@@ -293,21 +313,20 @@ def reddit_scrape(keywords):
 
             try:
                 post.comments.replace_more(limit=0)
-            except Exception as e:
-                print(f"⚠️ Could not expand comments for post {post.id}: {e}")
+            except Exception:
                 continue
 
             extracted = 0
-
             for c in post.comments.list():
                 time.sleep(REDDIT_COMMENT_PAUSE_S)
 
                 key = (post.id, c.id)
                 if key in seen:
                     continue
+
                 seen.add(key)
 
-                rows_new.append({
+                rows.append({
                     **base,
                     "comment_id": c.id,
                     "comment": c.body,
@@ -321,27 +340,18 @@ def reddit_scrape(keywords):
                 if extracted >= MAX_REDDIT_COMMENTS:
                     break
 
-    df_all = pd.concat([df_existing, pd.DataFrame(rows_new)], ignore_index=True)
-
-    # ===== MAIN FILE =====
+    df_all = pd.concat([df_existing, pd.DataFrame(rows)], ignore_index=True)
     drive_write_csv(df_all, "Reddit_Data.csv")
-    print(f"✅ Reddit saved → {len(df_all)} rows")
-
-    # ===== STATIC DAILY BACKUP FILE =====
-    backup_name = "Reddit_Daily_Backup.csv"
-    drive_write_csv(df_all, backup_name)
-    print(f"📁 Daily backup saved → {backup_name}")
-
+    drive_write_csv(df_all, "Reddit_Daily_Backup.csv")
     return df_all
 
-
-
 # ======================================================================
-# =============================== MAIN =================================
+# ================================ MAIN ================================
 # ======================================================================
 
 def main():
-    keywords = drive_read_csv("keywords.csv")["cluster_keyword"].dropna().tolist()
+    
+    keywords = drive_read_csv("keywords.csv")["cluster_keyword"].dropna().tolist()[:500]
 
     yt = youtube_scrape(keywords)
     rd = reddit_scrape(keywords)
@@ -349,11 +359,10 @@ def main():
     combined = pd.concat([yt, rd], ignore_index=True)
     drive_write_csv(combined, "Combined_Social_Data.csv")
 
-    print("\n📊 YouTube API Usage Summary (session):")
+    print("\n🎉 Run Completed Successfully!")
+    print("\n📊 YouTube API Usage Summary:")
     for k in YT_USAGE:
-        print(f"• {k['key'][:10]}… → {k['usage']} units used")
-
-    print("\n🎉 Run Completed Successfully")
+        print(f"{k['key'][:10]}… → {k['usage']}")
 
 if __name__ == "__main__":
     main()
