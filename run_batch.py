@@ -11,7 +11,7 @@ import time
 
 # ====== CONFIG ======
 DRIVE_FOLDER_ID = "1Lp6rU11WMfmvEwZoIaTKyg8ex52EwAc0"
-SWITCH_THRESHOLD = 10
+SWITCH_THRESHOLD = 8300
 COMMENTS_PER_REQUEST = 100
 MAX_REDDIT_COMMENTS = 3000
 TODAY_STR = datetime.utcnow().strftime("%Y%m%d")
