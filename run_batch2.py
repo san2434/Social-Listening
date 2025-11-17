@@ -504,15 +504,20 @@ def subreddit_full_scrape(subreddits):
         print(f"\n📡 Scraping subreddit: r/{sr}")
 
         try:
-            posts = reddit.subreddit(sr).new(limit=2000)
+            # NEW: unlimited fetch, but we exit early when posts get old
+            posts = reddit.subreddit(sr).new(limit=None)
         except Exception as e:
             print(f"⚠️ Error accessing subreddit {sr}: {e}")
             continue
 
         for post in posts:
+            # Get created date
             created = datetime.fromtimestamp(post.created_utc, tz=timezone.utc)
+
+            # NEW: stop immediately when posts get older than 7 days
             if created < cutoff:
-                continue
+                print(f"⏹️ Stopped: older posts reached for r/{sr}")
+                break
 
             title = post.title or ""
             body = post.selftext or ""
@@ -531,9 +536,11 @@ def subreddit_full_scrape(subreddits):
                 "like_count": post.ups,
                 "favorite_count": None,
                 "comment_count": post.num_comments,
-                "thumbnail_medium_url": post.thumbnail
-                if getattr(post, "thumbnail", "") not in ("", "self", "default")
-                else None,
+                "thumbnail_medium_url": (
+                    post.thumbnail
+                    if getattr(post, "thumbnail", "") not in ("", "self", "default")
+                    else None
+                ),
                 "category_id": None,
                 "tags": None,
                 "topic_categories": None,
@@ -543,12 +550,14 @@ def subreddit_full_scrape(subreddits):
                 "source": "Reddit",
             }
 
+            # Expand comments safely
             try:
                 post.comments.replace_more(limit=0)
             except Exception:
                 continue
 
             for c in post.comments.list():
+                # Keep your sleep to avoid rate limit
                 time.sleep(REDDIT_COMMENT_PAUSE_S)
 
                 key = (post.id, c.id)
@@ -556,25 +565,25 @@ def subreddit_full_scrape(subreddits):
                     continue
                 seen.add(key)
 
-                rows.append(
-                    {
-                        **base,
-                        "comment_id": c.id,
-                        "comment": c.body,
-                        "comment_author": str(c.author) if c.author else None,
-                        "comment_author_channel_id": None,
-                        "comment_like_count": getattr(c, "score", None),
-                        "comment_published_at": datetime.fromtimestamp(
-                            c.created_utc, tz=timezone.utc
-                        ).isoformat(),
-                        "comment_updated_at": None,
-                    }
-                )
+                rows.append({
+                    **base,
+                    "comment_id": c.id,
+                    "comment": c.body,
+                    "comment_author": str(c.author) if c.author else None,
+                    "comment_author_channel_id": None,
+                    "comment_like_count": getattr(c, "score", None),
+                    "comment_published_at": datetime.fromtimestamp(
+                        c.created_utc, tz=timezone.utc
+                    ).isoformat(),
+                    "comment_updated_at": None,
+                })
 
+    # Combine, normalize and save
     df_all = pd.concat([df_existing, pd.DataFrame(rows)], ignore_index=True)
     df_all = normalize(df_all)
     drive_write_csv(df_all, REDDIT_CSV)
     drive_write_csv(df_all, "Reddit_Daily_Backup_New.csv")
+
     return df_all
 
 
