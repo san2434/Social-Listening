@@ -587,7 +587,7 @@ def main():
     keywords_df = drive_read_csv("keywords.csv")
     if "cluster_keyword" not in keywords_df.columns:
         raise ValueError("keywords.csv must contain a 'cluster_keyword' column")
-    keywords = keywords_df["cluster_keyword"].dropna().tolist()[:50]
+    keywords = keywords_df["cluster_keyword"].dropna().tolist()[:5]
 
     # Phase 1 — Reddit keyword search
     rd_phase1 = reddit_keyword_scrape(keywords)
