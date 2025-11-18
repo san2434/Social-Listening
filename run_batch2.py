@@ -597,8 +597,9 @@ def main():
         rd_phase2 = rd_phase1
 
     # YouTube scrape
-    yt = youtube_scrape(keywords)
-
+    #yt = youtube_scrape(keywords)
+    print("⚠️ Skipping YouTube scrape (debug mode).")
+    yt = pd.DataFrame(columns=COLUMNS)
     # Combine everything
     combined = pd.concat([yt, rd_phase2], ignore_index=True)
     safe_write_csv(combined, COMBINED_CSV, normalize_input=True)
