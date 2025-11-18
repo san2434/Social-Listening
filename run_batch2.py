@@ -23,6 +23,8 @@ YOUTUBE_CSV = "YouTube_New.csv"
 REDDIT_CSV = "Reddit_New.csv"
 COMBINED_CSV = "Combined_New.csv"
 
+print("CP 1")
+
 # ====== LOCAL OUTPUT DIRECTORY ======
 LOCAL_DIR = "."
 os.makedirs(LOCAL_DIR, exist_ok=True)
@@ -71,7 +73,7 @@ def normalize(df: pd.DataFrame) -> pd.DataFrame:
     df = df[COLUMNS]
     return df
 
-
+print("CP 2")
 # ======================================================================
 # =========================== LOCAL CSV HELPERS =========================
 # ======================================================================
@@ -145,7 +147,7 @@ REDDIT_BACKOFF_S = 60
 REDDIT_SEARCH_PAUSE_S = 1.0
 REDDIT_COMMENT_PAUSE_S = 0.25
 
-
+print("CP 3")
 def safe_reddit_search(reddit_client, query, retries=REDDIT_RETRIES):
     """
     Keyword-based Reddit search with retry and backoff.
@@ -194,7 +196,7 @@ def get_youtube_service():
 
 get_youtube_service()
 
-
+print("CP 4")
 def rotate_key():
     global current_key_index, YOUTUBE_API_KEY
     current_key_index += 1
@@ -244,7 +246,7 @@ def get_keyword_match_type(title, body, kw):
         return "body"
     return "none"
 
-
+print("CP 5")
 # ======================================================================
 # ========================== YOUTUBE SCRAPER ============================
 # ======================================================================
@@ -557,7 +559,7 @@ def subreddit_full_scrape(subreddits):
     safe_write_csv(df_all, REDDIT_CSV, normalize_input=True)
     return df_all
 
-
+print("CP 6")
 # ======================================================================
 # ================================ MAIN ================================
 # ======================================================================
@@ -567,17 +569,17 @@ def main():
     keywords_df = safe_read_csv("keywords.csv", normalize_output=False)
     if "cluster_keyword" not in keywords_df.columns:
         raise ValueError("keywords.csv must contain a 'cluster_keyword' column")
-
+print("Keywords read success")
     # Adjust slice as needed (e.g. [:500])
     keywords = keywords_df["cluster_keyword"].dropna().tolist()[:5]
-
+print("into redit keyword scrape")
     # Phase 1 — Reddit keyword search
     rd_phase1 = reddit_keyword_scrape(keywords)
-
+print("Reddit keyword scrape success")
     # Discover active subreddits
     active_subreddits = rd_phase1["subreddit"].dropna().unique().tolist()
     print("\n🧭 Active subreddits found:", active_subreddits)
-
+print("starting phase 2")
     # Phase 2 — Full subreddit scrape
     rd_phase2 = subreddit_full_scrape(active_subreddits) if active_subreddits else rd_phase1
 
