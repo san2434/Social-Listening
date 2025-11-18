@@ -12,6 +12,7 @@ import praw
 import prawcore
 
 print("➡️ SCRIPT STARTED", flush=True)
+print("➡️ SCRIPT STARTED Test seq")
 
 # ====== CONFIG ======
 SWITCH_THRESHOLD = 10          # YouTube quota switch threshold (tune as needed)
