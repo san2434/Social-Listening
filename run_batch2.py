@@ -567,21 +567,33 @@ print("CP 6")
 def main():
     # Read keywords.csv from repo (NOT from Drive)
     keywords_df = safe_read_csv("keywords.csv", normalize_output=False)
+
     if "cluster_keyword" not in keywords_df.columns:
         raise ValueError("keywords.csv must contain a 'cluster_keyword' column")
+
     print("Keywords read success")
-    # Adjust slice as needed (e.g. [:500])
+
+    # Adjust slice as needed (e.g., [:500])
     keywords = keywords_df["cluster_keyword"].dropna().tolist()[:5]
-    print("into redit keyword scrape")
+
+    print("Into Reddit keyword scrape...")
+
     # Phase 1 — Reddit keyword search
     rd_phase1 = reddit_keyword_scrape(keywords)
+
     print("Reddit keyword scrape success")
+
     # Discover active subreddits
     active_subreddits = rd_phase1["subreddit"].dropna().unique().tolist()
     print("\n🧭 Active subreddits found:", active_subreddits)
-    print("starting phase 2")
+
+    print("Starting Phase 2 subreddit scrape...")
+
     # Phase 2 — Full subreddit scrape
-    rd_phase2 = subreddit_full_scrape(active_subreddits) if active_subreddits else rd_phase1
+    if active_subreddits:
+        rd_phase2 = subreddit_full_scrape(active_subreddits)
+    else:
+        rd_phase2 = rd_phase1
 
     # YouTube scrape
     yt = youtube_scrape(keywords)
