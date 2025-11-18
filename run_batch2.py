@@ -1,4 +1,4 @@
-print("➡️ SCRIPT STARTED", flush=True)
+
 #!/usr/bin/env python3
 import os
 import json
@@ -10,6 +10,8 @@ import pandas as pd
 from googleapiclient.discovery import build
 import praw
 import prawcore
+
+print("➡️ SCRIPT STARTED", flush=True)
 
 # ====== CONFIG ======
 SWITCH_THRESHOLD = 10          # YouTube quota switch threshold (tune as needed)
