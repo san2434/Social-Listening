@@ -18,8 +18,12 @@ SWITCH_THRESHOLD = 10          # YouTube quota switch threshold (tune as needed)
 COMMENTS_PER_REQUEST = 100
 MAX_REDDIT_COMMENTS = 3000
 
+print("CP 0")
+
 NOW_UTC = datetime.now(timezone.utc)
 TODAY_STR = NOW_UTC.strftime("%Y%m%d")
+
+print("CP 0.5")
 
 # New clean file names
 YOUTUBE_CSV = "YouTube_New.csv"
