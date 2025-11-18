@@ -12,26 +12,26 @@ import praw
 import prawcore
 
 print("➡️ SCRIPT STARTED", flush=True)
-print("➡️ SCRIPT STARTED Test seq")
+print("➡️ SCRIPT STARTED Test seq", flush=True)
 
 # ====== CONFIG ======
 SWITCH_THRESHOLD = 10          # YouTube quota switch threshold (tune as needed)
 COMMENTS_PER_REQUEST = 100
 MAX_REDDIT_COMMENTS = 3000
 
-print("CP 0")
+print("CP 0",flush=True)
 
 NOW_UTC = datetime.now(timezone.utc)
 TODAY_STR = NOW_UTC.strftime("%Y%m%d")
 
-print("CP 0.5")
+print("CP 0.5",flush=True)
 
 # New clean file names
 YOUTUBE_CSV = "YouTube_New.csv"
 REDDIT_CSV = "Reddit_New.csv"
 COMBINED_CSV = "Combined_New.csv"
 
-print("CP 1")
+print("CP 1",flush=True)
 
 # ====== LOCAL OUTPUT DIRECTORY ======
 LOCAL_DIR = "."
