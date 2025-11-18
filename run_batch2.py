@@ -1,3 +1,4 @@
+print("➡️ SCRIPT STARTED", flush=True)
 #!/usr/bin/env python3
 import os
 import json
