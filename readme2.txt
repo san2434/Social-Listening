@@ -1,2 +1,12 @@
 If we consider Labubu Toys as a L3 category. What should be the L1 and L2 category ?
 Example - Chess is a L3 category, Board Games is a L2 category, Games is a L1 category, Recreation is a L0 category
+
+Option 2 (If your taxonomy is more retail-focused)
+
+L0: Recreation / Entertainment
+
+L1: Toys & Collectibles
+
+L2: Limited-Edition Collectibles / Blind Box Figures
+
+L3: Labubu Toys
