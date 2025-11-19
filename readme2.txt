@@ -36,3 +36,38 @@ When unclear, classify based on dominant intent (gift, collection, resale, excit
 Always infer categories even if the post uses slang or indirect mentions.
 
 If a category cannot be determined, use "Unknown" for that level.
+
+
+📌 User Prompt Template (For Each Post)
+
+Instruction:
+Classify the following social media post using the defined retail taxonomy. Also extract early trend signals.
+
+Post:
+“{{insert post text here}}”
+
+Return JSON in this exact format:
+
+{
+  "L0_category": "",
+  "L1_category": "",
+  "L2_category": "",
+  "L3_category": "",
+  "Sentiment": "",
+  "Emerging_Trend_Flag": "",
+  "Trend_Reasoning": "",
+  "Key_Entities": [],
+  "Use_Case": "",
+  "Excitement_Level": ""
+}
+
+
+Output Rules:
+
+Sentiment: Positive / Neutral / Negative
+
+Emerging_Trend_Flag: Yes if mentions are rising, hype exists, new season/launch/gift trend, or repeated recommendations
+
+Use_Case: Gift, Collection, Resale, Casual Interest, Complaint
+
+Excitement_Level: High / Medium / Low
