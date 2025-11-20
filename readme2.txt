@@ -264,3 +264,11 @@ def extract_features_from_csv(input_csv_path, model="gpt-4.1"):
 Use_Case: Gift, Collection, Resale, Casual Interest, Complaint
 
 Excitement_Level: High / Medium / Low
+
+
+Themes: Gifts
+Sub themes: Holiday gifting discounts, Shotani gift cards, Pokémon gift cards
+What are people excited about?
+Pokémon cards are surfacing more in a lot of gift card discussions with few people also recommending Shotani gift cards. Pokémon new season release being mentioned in lot of comments as well
+Positive: Pokémon cards related discussions show a lot of positive excitement
+Negatives: XYZ stores might be closing mentioned on multiple threads and gift cards may need to be redeemed as early as possible
