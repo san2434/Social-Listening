@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Show files
+        run: ls -R
 
       - name: Install Dependencies
         run: pip install google-api-python-client praw pandas google-auth-httplib2 google-auth-oauthlib
