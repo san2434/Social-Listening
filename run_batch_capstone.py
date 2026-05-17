@@ -24,7 +24,7 @@ os.makedirs(LOCAL_DIR, exist_ok=True)
 
 # ====== BUILD GOOGLE DRIVE CLIENT WITH REBUILD OPTION ======
 def build_drive():
-    creds_json = json.loads(os.environ["GDRIVE_SERVICE_ACCOUNT_JSON"])
+    creds_json = json.loads(os.environ["GDRIVE_SERVICE_ACCOUNT2_JSON"])
     creds = Credentials.from_service_account_info(creds_json)
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
