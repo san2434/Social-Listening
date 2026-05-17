@@ -14,7 +14,9 @@ DRIVE_FOLDER_ID = "1mzU-6K9Vhcvcs-MiXgO0dGUsBpU-zkVf"
 SWITCH_THRESHOLD = 10
 COMMENTS_PER_REQUEST = 100
 MAX_REDDIT_COMMENTS = 300
-TODAY_STR = datetime.utcnow().strftime("%Y%m%d")
+from datetime import datetime, UTC
+
+TODAY_STR = datetime.now(UTC).strftime("%Y%m%d")
 
 # ====== LOCAL OUTPUT DIRECTORY ======
 LOCAL_DIR = "."
