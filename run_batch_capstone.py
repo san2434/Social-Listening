@@ -352,8 +352,12 @@ def reddit_scrape(keywords):
 # ======================================================================
 
 def main():
-    
     df = drive_read_csv("keywords_hiking.csv")
+
+    if df.empty or len(df.columns) == 0:
+        raise ValueError(
+            "keywords_hiking.csv is empty or could not be read. Check Google Drive sharing, file content, or drive_find()."
+        )
 
     df.columns = (
         df.columns.astype(str)
@@ -364,9 +368,13 @@ def main():
     print("CSV columns found:", df.columns.tolist())
     print(df.head())
 
+    if "cluster_keyword" not in df.columns:
+        raise KeyError(
+            f"'cluster_keyword' column not found. Available columns: {df.columns.tolist()}"
+        )
+
     keywords = df["cluster_keyword"].dropna().astype(str).tolist()[:55]
     print("Keywords loaded:", keywords)
-    
 
     yt = youtube_scrape(keywords)
     rd = reddit_scrape(keywords)
