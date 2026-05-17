@@ -355,17 +355,17 @@ def main():
     
     df = drive_read_csv("keywords_hiking.csv")
 
-df.columns = (
-    df.columns.astype(str)
-    .str.strip()
-    .str.replace("\ufeff", "", regex=False)
-)
+    df.columns = (
+        df.columns.astype(str)
+        .str.strip()
+        .str.replace("\ufeff", "", regex=False)
+    )
 
-print("CSV columns found:", df.columns.tolist())
-print(df.head())
+    print("CSV columns found:", df.columns.tolist())
+    print(df.head())
 
-keywords = df["cluster_keyword"].dropna().astype(str).tolist()[:55]
-print("Keywords loaded:", keywords)
+    keywords = df["cluster_keyword"].dropna().astype(str).tolist()[:55]
+    print("Keywords loaded:", keywords)
     
 
     yt = youtube_scrape(keywords)
