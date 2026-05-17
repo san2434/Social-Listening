@@ -19,7 +19,7 @@ jobs:
 
       - name: Run Pipeline
         env:
-          GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_SERVICE_ACCOUNT2_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT2_JSON }}
           YOUTUBE_KEYS_JSON: ${{ secrets.YOUTUBE_KEYS_JSON }}
           REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
