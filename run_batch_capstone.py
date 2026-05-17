@@ -88,27 +88,36 @@ def drive_read_csv(filename):
     return df
 
 def drive_write_csv(df, filename):
-    # Save locally first
     local_path = os.path.join(LOCAL_DIR, filename)
     df.to_csv(local_path, index=False)
     print(f"💾 Local copy saved: {local_path}")
 
-    # Now upload to Drive
     fh = BytesIO()
     df.to_csv(fh, index=False)
     fh.seek(0)
-    media = MediaIoBaseUpload(fh, mimetype="text/csv")
+
+    media = MediaIoBaseUpload(fh, mimetype="text/csv", resumable=False)
 
     file_id = drive_find(filename)
+
     if file_id:
-        safe_drive_call(lambda: drive.files().update(fileId=file_id, media_body=media).execute())
+        safe_drive_call(lambda: drive.files().update(
+            fileId=file_id,
+            media_body=media,
+            supportsAllDrives=True
+        ).execute())
         print(f"☁️ Updated Drive file: {filename}")
     else:
         safe_drive_call(lambda: drive.files().create(
-            body={"name": filename, "parents": [DRIVE_FOLDER_ID]},
-            media_body=media
+            body={
+                "name": filename,
+                "parents": [DRIVE_FOLDER_ID]
+            },
+            media_body=media,
+            fields="id",
+            supportsAllDrives=True
         ).execute())
-        print(f"☁️ Created new Drive file: {filename}")
+        print(f"☁️ Created new Drive file inside folder: {filename}")
 
 # ====== REDDIT AUTH ======
 reddit = praw.Reddit(
