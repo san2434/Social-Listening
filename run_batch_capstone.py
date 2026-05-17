@@ -351,7 +351,14 @@ def reddit_scrape(keywords):
 
 def main():
     
-    keywords = drive_read_csv("keywords_hiking.csv")["cluster_keyword"].dropna().tolist()[:55]
+    df = drive_read_csv("keywords_hiking.csv")["cluster_keyword"].dropna().tolist()[:55]
+    #print("CSV columns:", df.columns.tolist())
+    #print(df.head())
+
+    df.columns = df.columns.astype(str).str.strip().str.replace('\ufeff', '', regex=False)
+
+    keywords = df["cluster_keyword"].dropna().tolist()[:55]
+    
 
     yt = youtube_scrape(keywords)
     rd = reddit_scrape(keywords)
