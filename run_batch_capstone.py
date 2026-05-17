@@ -46,10 +46,18 @@ def safe_drive_call(func, retries=3, wait=5):
 
 # ====== DRIVE FUNCTIONS ======
 
-def drive_find(name):
-    q = f"'{DRIVE_FOLDER_ID}' in parents and name='{name}'"
-    result = safe_drive_call(lambda: drive.files().list(q=q).execute())
-    files = result.get("files", [])
+def drive_find(filename):
+    query = f"name='{filename}' and '{DRIVE_FOLDER_ID}' in parents and trashed=false"
+
+    results = safe_drive_call(lambda: drive.files().list(
+        q=query,
+        spaces="drive",
+        fields="files(id, name)",
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True
+    ).execute())
+
+    files = results.get("files", [])
     return files[0]["id"] if files else None
 
 def drive_read_csv(filename):
