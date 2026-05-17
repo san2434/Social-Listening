@@ -351,7 +351,7 @@ def reddit_scrape(keywords):
 
 def main():
     
-    keywords = drive_read_csv("keywords_hiking.csv")["cluster_keyword"].dropna().tolist()[:5]
+    keywords = drive_read_csv("keywords_hiking.csv")["cluster_keyword"].dropna().tolist()[:55]
 
     yt = youtube_scrape(keywords)
     rd = reddit_scrape(keywords)
